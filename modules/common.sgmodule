@@ -1,4 +1,4 @@
-#!name=Common Defaults
+#!name=Surge Commnon
 #!desc=Shared baseline settings for Apple devices.
 #!requirement=SYSTEM == 'macOS' || SYSTEM == 'iOS'
 
