@@ -1,0 +1,6 @@
+.DS_Store
+*.conf
+*.js
+*.local
+*.local.*
+private/

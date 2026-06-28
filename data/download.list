@@ -1,0 +1,11 @@
+# Large downloads and software updates
+DOMAIN-SUFFIX,cdn-apple.com
+DOMAIN-SUFFIX,download.microsoft.com
+DOMAIN-SUFFIX,steamcontent.com
+DOMAIN-SUFFIX,steamstatic.com
+DOMAIN-SUFFIX,swcdn.apple.com
+DOMAIN-SUFFIX,swdist.apple.com
+DOMAIN-SUFFIX,swscan.apple.com
+DOMAIN-SUFFIX,updates.cdn-apple.com
+DOMAIN-SUFFIX,github-releases.githubusercontent.com
+DOMAIN-SUFFIX,objects.githubusercontent.com
