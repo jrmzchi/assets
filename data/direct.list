@@ -9,7 +9,7 @@ DOMAIN-SUFFIX,cloudflare-gateway.com
 DOMAIN-SUFFIX,cloudflare-dns.com
 DOMAIN-SUFFIX,dns.google
 DOMAIN-SUFFIX,dns.quad9.net
-DOMAIN-SUFFIX,family.com.tw,DIRECT
+#DOMAIN-SUFFIX,family.com.tw,DIRECT
 
 # Services that should use the physical connection
 DOMAIN,ichigo-rel.nianticlabs.com
