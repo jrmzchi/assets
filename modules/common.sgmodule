@@ -1,10 +1,12 @@
-#!name=Surge Commnon
+#!name=Surge Common
 #!desc=Shared baseline settings for Apple devices.
 #!requirement=SYSTEM == 'macOS' || SYSTEM == 'iOS'
 
 [General]
 ipv6 = false
 dns-server = 1.1.1.1, 8.8.8.8, system
+encrypted-dns-server = https://lnc6tz5mje.cloudflare-gateway.com/dns-query
+skip-proxy = 127.0.0.1, 192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12, 100.64.0.0/10, localhost, *.local, *.crashlytics.com
 doh-follow-outbound-mode = false
 doh-server-timeout = 5
 internet-test-url = http://cp.cloudflare.com/generate_204
