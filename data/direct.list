@@ -1,6 +1,6 @@
 # Connectivity, time and encrypted DNS endpoints
 DOMAIN,captive.apple.com
-DOMAIN-SUFFIX,safebrowsing.apple,DIRECT
+DOMAIN-SUFFIX,safebrowsing.apple.com,DIRECT
 DOMAIN-SUFFIX,connectivitycheck.gstatic.com
 DOMAIN-SUFFIX,pool.ntp.org
 DOMAIN,time.apple.com
