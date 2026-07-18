@@ -4,3 +4,6 @@ URL-REGEX,^https://egy\.line-apps\.com/tl/api/v57/timeline/tab/contents\.json
 URL-REGEX,^https://legy\.line-apps\.com/l/discover/api/v1/recommendTab/feeds
 DOMAIN-SUFFIX,linevoom.line.me
 DOMAIN-SUFFIX,voom-obs.line-scdn.net
+DOMAIN-SUFFIX,pangle.io,REJECT
+DOMAIN,v16-ad.byteoversea.com,REJECT
+DOMAIN,p16-common-sign.tiktokcdn.com,REJECT
