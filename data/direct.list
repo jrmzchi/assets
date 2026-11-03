@@ -24,6 +24,3 @@ DOMAIN,megapx-assets.dcard.tw
 DOMAIN,www.dcard.tw
 DOMAIN,sticker-assets.dcard.tw
 DOMAIN,fido.moi.gov.tw
-
-# Original Remove Ads direct exception
-DOMAIN-SUFFIX,ad.ettoday.net
