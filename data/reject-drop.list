@@ -1,0 +1,4 @@
+# Fixed REJECT-DROP rules, based on jkgtw/Surge Modules/ADList.sgmodule.
+DOMAIN,sessions.bugsnag.com
+DOMAIN-KEYWORD,adservice
+DOMAIN-KEYWORD,crashlytics
