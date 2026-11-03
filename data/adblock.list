@@ -1,0 +1,8 @@
+# Domains controlled by the AdBlock policy group.
+# Observed in Mob Control; domain rules apply to all apps.
+DOMAIN,b.applovin.com
+DOMAIN,d.applovin.com
+DOMAIN,ms.applovin.com
+DOMAIN,rt.applovin.com
+DOMAIN,sts.applovin.com
+DOMAIN,ms.applvn.com
