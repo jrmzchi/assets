@@ -1,12 +1,4 @@
 # Domains controlled by the AdBlock policy group.
 # Domain rules apply to all apps.
-# AppLovin hosts observed in Mob Control.
-DOMAIN,b.applovin.com
-DOMAIN,d.applovin.com
-DOMAIN,ms.applovin.com
-DOMAIN,rt.applovin.com
-DOMAIN,sts.applovin.com
-DOMAIN,ms.applvn.com
-
 # Advertising domain controlled by AdBlock
 DOMAIN-SUFFIX,ad.ettoday.net
