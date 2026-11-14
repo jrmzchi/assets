@@ -40,6 +40,28 @@ s = s.replace('format!(\n            "{}/challenge/viewer?titleNo={clean_manga_i
 s = s.replace('format!("{}/viewer?titleNo={manga_id}&episodeNo={chapter_id}")',
               'format!("{}/viewer?titleNo={manga_id}&episodeNo={chapter_id}", get_base_url(false))')
 helper.write_text(s)
+# Use the exact chapter URL returned by WEBTOON's episode API. Constructed
+# /zh-hant/viewer? URLs may not resolve to the actual localized reader.
+parser = target / "src/parser.rs"
+p = parser.read_text()
+old = '''pub fn parse_page_list(manga_key: &str, chapter_key: &str) -> Result<Vec<Page>> {
+    let url = get_chapter_url(chapter_key, manga_key);
+    let html = request(&url, false)?.html()?;
+'''
+new = '''pub fn parse_page_list(manga_key: &str, chapter_key: &str, chapter_url: Option<&str>) -> Result<Vec<Page>> {
+    let fallback = get_chapter_url(chapter_key, manga_key);
+    let url = chapter_url.filter(|u| u.starts_with("https://www.webtoons.com/") || u.starts_with("https://m.webtoons.com/")).unwrap_or(&fallback);
+    let html = request(url, false)?.html()?;
+'''
+assert old in p, "Upstream parse_page_list changed"
+p = p.replace(old, new)
+parser.write_text(p)
+lib = target / "src/lib.rs"
+l = lib.read_text()
+old = 'parser::parse_page_list(&manga.key, &chapter.key)'
+new = 'parser::parse_page_list(&manga.key, &chapter.key, chapter.url.as_deref())'
+assert old in l, "Upstream get_page_list changed"
+lib.write_text(l.replace(old, new))
 meta = target / "res/source.json"
 d = json.loads(meta.read_text())
 d["info"].update({"id": "zh.webtoon", "name": "WEBTOON 繁體中文", "languages": ["zh-Hant"]})
