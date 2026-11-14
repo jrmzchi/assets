@@ -19,6 +19,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+      - name: Install Python build dependencies
+        run: python -m pip install Pillow
       - name: Patch WEBTOON source for zh-Hant
         run: |
           cd /tmp/aidoku-upstream
