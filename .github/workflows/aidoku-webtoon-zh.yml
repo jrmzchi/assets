@@ -1,0 +1,59 @@
+name: Build Aidoku WEBTOON Traditional Chinese
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 3 * * 0'
+permissions:
+  contents: write
+concurrency:
+  group: aidoku-webtoon-zh
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone upstream source workspace
+        run: git clone --depth 1 https://github.com/Amqx/sources.git /tmp/aidoku-upstream
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Patch WEBTOON source for zh-Hant
+        run: |
+          cd /tmp/aidoku-upstream
+          python "$GITHUB_WORKSPACE/aidoku-webtoon-zh/patch.py"
+          test -f sources/zh.webtoon/res/source.json
+      - name: Build and package Aidoku extension
+        run: |
+          cd /tmp/aidoku-upstream
+          python scripts/aidoku.py package zh.webtoon
+          test -s sources/zh.webtoon/package.aix
+      - name: Install Aidoku CLI
+        run: cargo install --git https://github.com/Amqx/aidoku-rs.git --rev 0a493897e070d58c901f10ef6b259428c2b5bc27 aidoku-cli --locked
+      - name: Generate Aidoku source list
+        run: |
+          cd /tmp/aidoku-upstream
+          python scripts/aidoku.py build sources/zh.webtoon/package.aix -o "$GITHUB_WORKSPACE/aidoku-webtoon-zh" -n "WEBTOON 繁體中文"
+          test -s "$GITHUB_WORKSPACE/aidoku-webtoon-zh/index.min.json"
+      - name: Check source metadata
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("aidoku-webtoon-zh/index.min.json")
+          data = json.loads(p.read_text())
+          assert data, "Empty source list"
+          print("Source list JSON generated")
+          PY
+      - name: Publish generated files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add aidoku-webtoon-zh
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "build: publish Traditional Chinese WEBTOON Aidoku source"
+            git push
+          fi
