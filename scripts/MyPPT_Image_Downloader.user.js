@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.3.2
+// @version      1.3.3
 // @description  Mobile-friendly image gallery and downloads for visible MyPPT/LURL pages
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -19,6 +19,15 @@
   'use strict';
   if (window.__mypptDownloaderV2) return;
   window.__mypptDownloaderV2 = true;
+  const unlockStyle = document.createElement('style');
+  unlockStyle.textContent = 'img,a,video{-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important}';
+  document.documentElement.appendChild(unlockStyle);
+  ['contextmenu','selectstart','copy','dragstart'].forEach(type => {
+    window.addEventListener(type, event => {
+      if (event.target?.closest?.('#myppt-download-ui')) return;
+      event.stopImmediatePropagation();
+    }, true);
+  });
   const found = new Map();
   const selected = new Set();
   const blocked = /^(?:data:|blob:|javascript:)/i;
@@ -63,13 +72,13 @@
 #actions{display:flex;gap:8px;margin:16px 0 10px}#actions button{border:1px solid #cbd5e1;border-radius:11px;background:white;padding:10px 12px;flex:1}#actions button.primary{background:#2563eb;color:white;border-color:#2563eb}
 #gallery{overflow:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-content:start;min-height:100px}
 .item{position:relative;border:2px solid transparent;border-radius:12px;overflow:hidden;background:#e2e8f0;aspect-ratio:1;cursor:pointer}.item.active{border-color:#2563eb}.item img{width:100%;height:100%;object-fit:cover}.tick{position:absolute;top:6px;right:6px;background:#fff;border-radius:50%;width:23px;height:23px;text-align:center;line-height:23px;font-weight:bold;color:#2563eb}
-#status{font-size:12px;color:#64748b;margin:10px 0 0}#empty{grid-column:1/-1;padding:30px 12px;text-align:center;color:#64748b}
+#gallery img{-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important}#status{font-size:12px;color:#64748b;margin:10px 0 0}#empty{grid-column:1/-1;padding:30px 12px;text-align:center;color:#64748b}
 </style>
 <button id="fab" type="button">📷 圖片</button>
 <div id="veil"><section id="sheet" role="dialog" aria-label="MyPPT 圖片下載">
 <div id="top"><div><h2>圖片下載</h2><div id="sub">已找到 0 張圖片</div></div><button id="close">關閉</button></div>
 <div id="actions"><button id="refresh">重新掃描</button><button id="all">全選</button><button id="save" class="primary">下載選取</button></div>
-<div id="gallery"></div><button id="report" style="margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:white">複製診斷報告</button><p id="status">先捲動頁面，讓圖片載入後再掃描。</p>
+<div id="gallery"></div><button id="canvas" style="margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:white">測試圖片讀取</button><button id="report" style="margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:white">複製診斷報告</button><p id="status">先捲動頁面，讓圖片載入後再掃描。</p>
 </section></div>`;
   document.documentElement.appendChild(root);
   const $ = id => shadow.getElementById(id);
@@ -89,7 +98,7 @@
       tile.type = 'button'; tile.className = 'item' + (selected.has(url) ? ' active' : '');
       tile.setAttribute('aria-label','選取圖片 '+(i+1));
       const img = document.createElement('img');
-      img.src = url; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+      img.src = url; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; img.style.webkitTouchCallout = 'default';
       const tick = document.createElement('span');
       tick.className = 'tick'; tick.textContent = selected.has(url) ? '✓' : '+';
       tile.append(img,tick);
@@ -155,8 +164,30 @@
       return requestGM(url);
     }
   }
+  $('canvas').onclick = () => {
+    diagnostics = ['Canvas / image loading diagnostic'];
+    const url = [...selected][0];
+    if (!url) { $('status').textContent='請先選一張圖片'; return; }
+    const img = new Image();
+    img.onload = () => {
+      note('Image: loaded '+img.naturalWidth+'x'+img.naturalHeight);
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img,0,0);
+        canvas.toDataURL('image/png');
+        note('Canvas: export successful');
+        $('status').textContent='Canvas 可匯出，請複製診斷報告';
+      } catch(e) {
+        note('Canvas: '+(e?.name||'Error')+' - '+(e?.message||'unknown'));
+        $('status').textContent='Canvas 無法匯出，請複製診斷報告';
+      }
+    };
+    img.onerror = () => { note('Image: load failed'); $('status').textContent='圖片載入失敗，請複製診斷報告'; };
+    img.src = url;
+  };
   $('report').onclick = async () => {
-    const report = 'MyPPT Downloader v1.3.2\\n'+diagnostics.join('\\n');
+    const report = 'MyPPT Downloader v1.3.3\\n'+diagnostics.join('\\n');
     try { await navigator.clipboard.writeText(report); $('status').textContent='診斷報告已複製'; }
     catch { window.prompt('複製以下診斷內容',report); }
   };
