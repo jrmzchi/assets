@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.3.1
+// @version      1.3.2
 // @description  Mobile-friendly image gallery and downloads for visible MyPPT/LURL pages
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
 // @match        https://lurl.cc/*
 // @match        https://*.lurl.cc/*
-// @updateURL    https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.user.js
+// @updateURL    https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.meta.js
 // @downloadURL  https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.user.js
 // @run-at       document-idle
 // @grant        GM_xmlhttpRequest
@@ -156,7 +156,7 @@
     }
   }
   $('report').onclick = async () => {
-    const report = 'MyPPT Downloader v1.3.1\\n'+diagnostics.join('\\n');
+    const report = 'MyPPT Downloader v1.3.2\\n'+diagnostics.join('\\n');
     try { await navigator.clipboard.writeText(report); $('status').textContent='診斷報告已複製'; }
     catch { window.prompt('複製以下診斷內容',report); }
   };
