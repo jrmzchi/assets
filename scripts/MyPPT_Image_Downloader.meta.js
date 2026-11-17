@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.3.4
+// @version      1.3.5
 // @description  Mobile-friendly image gallery and downloads for visible MyPPT/LURL pages
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
