@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.4.0
+// @version      1.4.1
 // @description  iPhone image gallery with native long-press save
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -62,16 +62,18 @@
       *{box-sizing:border-box}
       button{font:inherit;-webkit-tap-highlight-color:transparent;cursor:pointer}
       #fab{position:fixed;right:18px;bottom:calc(env(safe-area-inset-bottom) + 20px);z-index:2147483645;border:0;border-radius:999px;padding:14px 18px;background:#2563eb;color:#fff;font:600 14px -apple-system,system-ui;box-shadow:0 8px 26px #0004}
-      #galleryScreen,#viewer{display:none;position:fixed;inset:0;z-index:2147483646;background:#f8fafc;color:#0f172a;font:14px -apple-system,system-ui}
-      #galleryScreen.open{display:flex;flex-direction:column}
-      .top{display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;border-bottom:1px solid #e2e8f0;background:#fff}
-      .top strong{font-size:17px;flex:1}
-      .top button{border:0;background:#f1f5f9;border-radius:12px;padding:10px 13px;color:#0f172a}
-      #count{font-size:12px;color:#64748b}
-      #grid{overflow:auto;flex:1;padding:12px 12px calc(env(safe-area-inset-bottom) + 16px);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-content:start}
-      .tile{border:0;border-radius:12px;overflow:hidden;aspect-ratio:3/4;background:#e2e8f0;padding:0}
-      .tile img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}
-      #empty{grid-column:1/-1;padding:40px 15px;text-align:center;color:#64748b}
+      #galleryScreen{display:none;position:fixed;inset:0;z-index:2147483646;background:#0009;color:#0f172a;font:14px -apple-system,system-ui}
+      #galleryScreen.open{display:block}
+      #sheet{position:absolute;bottom:0;left:0;right:0;max-height:88dvh;display:flex;flex-direction:column;background:#f8fafc;border-radius:22px 22px 0 0;padding:16px 14px calc(env(safe-area-inset-bottom) + 14px)}
+      #galleryScreen .top{padding:0 0 14px;background:transparent;border:0}
+      #galleryScreen .top strong{font-size:18px}
+      #galleryScreen .top button{background:#e2e8f0}
+      #galleryScreen #count{font-size:12px}
+      #grid{overflow:auto;min-height:100px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-content:start}
+      .tile{border:0;border-radius:12px;overflow:hidden;aspect-ratio:1;background:#e2e8f0;padding:0}
+      .tile img{display:block;width:100%;height:100%;object-fit:cover;-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important}
+      #empty{grid-column:1/-1;padding:35px 15px;text-align:center;color:#64748b}
+      #sheetHint{font-size:12px;color:#64748b;margin:12px 0 0;text-align:center}
       #viewer{z-index:2147483647;background:#0b0b0d;color:#fff;flex-direction:column}
       #viewer.open{display:flex}
       #viewer .top{background:#141416;color:#fff;border-color:#29292e}
@@ -85,10 +87,11 @@
       #hint{flex:1;text-align:center;font-size:12px;color:#cbd5e1}
     </style>
     <button id="fab" type="button">📷 圖片</button>
-    <section id="galleryScreen" aria-label="圖片清單">
-      <header class="top"><strong>圖片瀏覽</strong><span id="count">0 張</span><button id="refresh" type="button">重新掃描</button><button id="close" type="button">關閉</button></header>
+    <section id="galleryScreen" aria-label="圖片清單"><div id="sheet">
+      <header class="top"><strong>圖片下載</strong><span id="count">0 張</span><button id="refresh" type="button">重新掃描</button><button id="close" type="button">關閉</button></header>
       <div id="grid"></div>
-    </section>
+      <p id="sheetHint">點擊縮圖檢視原圖 · 長按圖片儲存</p>
+    </div></section>
     <section id="viewer" aria-label="原圖檢視">
       <header class="top"><button id="back" type="button">‹ 返回</button><strong>原圖檢視</strong><span id="position">1 / 1</span></header>
       <div id="imageArea"></div>
@@ -149,6 +152,7 @@
   $('fab').onclick = () => { renderGrid(); $('galleryScreen').classList.add('open'); };
   $('refresh').onclick = renderGrid;
   $('close').onclick = () => $('galleryScreen').classList.remove('open');
+  $('galleryScreen').addEventListener('click', e => { if (e.target === $('galleryScreen')) $('galleryScreen').classList.remove('open'); });
   $('back').onclick = () => { $('viewer').classList.remove('open'); $('imageArea').replaceChildren(); };
   $('prev').onclick = () => move(-1);
   $('next').onclick = () => move(1);
