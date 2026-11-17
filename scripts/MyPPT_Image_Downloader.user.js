@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.2.0
+// @version      1.3.0
 // @description  Mobile-friendly image gallery and downloads for visible MyPPT/LURL pages
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -10,7 +10,9 @@
 // @updateURL    https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.user.js
 // @downloadURL  https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.user.js
 // @run-at       document-idle
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      *.myppt.cc
+// @connect      *.lurl.cc
 // ==/UserScript==
 
 (() => {
@@ -104,16 +106,64 @@
     if (urls.every(u=>selected.has(u))) selected.clear(); else urls.forEach(u=>selected.add(u));
     render();
   };
+  const extension = (blob, u) => {
+    const type = (blob.type || '').toLowerCase();
+    if (type.includes('png')) return 'png';
+    if (type.includes('webp')) return 'webp';
+    if (type.includes('gif')) return 'gif';
+    if (type.includes('avif')) return 'avif';
+    if (type.includes('jpeg')) return 'jpg';
+    try { const ext = new URL(u).pathname.match(/\.(jpg|jpeg|png|webp|gif|avif)$/i); if (ext) return ext[1].toLowerCase(); } catch {}
+    return 'jpg';
+  };
+  const validImage = b => b && b.size > 0 && (b.type.startsWith('image/') || b.type === 'application/octet-stream');
+  const requestGM = url => new Promise((resolve,reject) => {
+    if (typeof GM_xmlhttpRequest !== 'function') return reject(new Error('Tampermonkey 跨網域請求不可用'));
+    GM_xmlhttpRequest({
+      method:'GET',url,responseType:'blob',timeout:20000,
+      onload: r => {
+        if (r.status < 200 || r.status >= 300) return reject(new Error('HTTP '+r.status));
+        const b = r.response;
+        if (!validImage(b)) return reject(new Error('伺服器未回傳圖片（可能是驗證或封鎖頁）'));
+        resolve(b);
+      },
+      onerror: () => reject(new Error('跨網域請求被拒絕')),
+      ontimeout: () => reject(new Error('連線逾時'))
+    });
+  });
+  async function getBlob(url) {
+    try {
+      const r = await fetch(url,{credentials:'include',referrer:location.href});
+      if (!r.ok) throw new Error('HTTP '+r.status);
+      const b = await r.blob();
+      if (!validImage(b)) throw new Error('回傳內容不是圖片');
+      return b;
+    } catch (e) {
+      return requestGM(url);
+    }
+  }
+  const downloadBlob = (blob,name) => {
+    const objectURL = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectURL; a.download = name;
+    a.style.display = 'none'; shadow.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(objectURL),60000);
+  };
   $('save').onclick = async () => {
     const urls = [...selected];
     if (!urls.length) { $('status').textContent = '請先選取圖片。'; return; }
-    if (urls.length > 1) {
-      $('status').textContent = 'iPhone 可能會封鎖多重下載；將逐一開啟圖片連結。';
+    $('save').disabled = true;
+    let success = 0, failed = 0, error = '';
+    for (let i = 0; i < urls.length; i++) {
+      $('status').textContent = '正在下載 ' + (i+1) + '/' + urls.length + '…';
+      try {
+        const blob = await getBlob(urls[i]);
+        const name = 'myppt_' + String(i+1).padStart(3,'0') + '.' + extension(blob,urls[i]);
+        downloadBlob(blob,name);
+        success++;
+      } catch (e) { failed++; error = e.message || String(e); }
     }
-    // User gesture opens the first image. Subsequent images require explicit taps on mobile.
-    const a = document.createElement('a');
-    a.href = urls[0]; a.target = '_blank'; a.rel = 'noopener noreferrer';
-    a.click();
-    $('status').textContent = urls.length === 1 ? '已開啟圖片，請長按儲存。' : '已開啟第 1 張；為避免 Safari 封鎖，請逐張開啟其餘圖片。';
+    $('save').disabled = false;
+    $('status').textContent = '完成：成功 '+success+'，失敗 '+failed+(failed ? '。最後錯誤：'+error : '')+'。iOS 可能要求允許多檔下載。';
   };
 })();
