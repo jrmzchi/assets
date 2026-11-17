@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.3.3
+// @version      1.3.4
 // @description  Mobile-friendly image gallery and downloads for visible MyPPT/LURL pages
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -72,14 +72,14 @@
 #actions{display:flex;gap:8px;margin:16px 0 10px}#actions button{border:1px solid #cbd5e1;border-radius:11px;background:white;padding:10px 12px;flex:1}#actions button.primary{background:#2563eb;color:white;border-color:#2563eb}
 #gallery{overflow:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-content:start;min-height:100px}
 .item{position:relative;border:2px solid transparent;border-radius:12px;overflow:hidden;background:#e2e8f0;aspect-ratio:1;cursor:pointer}.item.active{border-color:#2563eb}.item img{width:100%;height:100%;object-fit:cover}.tick{position:absolute;top:6px;right:6px;background:#fff;border-radius:50%;width:23px;height:23px;text-align:center;line-height:23px;font-weight:bold;color:#2563eb}
-#gallery img{-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important}#status{font-size:12px;color:#64748b;margin:10px 0 0}#empty{grid-column:1/-1;padding:30px 12px;text-align:center;color:#64748b}
+#gallery img{-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important}#viewer{display:none;position:fixed;inset:0;z-index:2147483647;background:#111;color:white;flex-direction:column}#viewer.open{display:flex}#viewerhead{display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 12px) 16px 12px}#viewerhead button{padding:10px 14px;border:0;border-radius:10px;background:#374151;color:white}#viewerbody{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:12px}#viewerbody img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important;pointer-events:auto!important}#status{font-size:12px;color:#64748b;margin:10px 0 0}#empty{grid-column:1/-1;padding:30px 12px;text-align:center;color:#64748b}
 </style>
 <button id="fab" type="button">📷 圖片</button>
 <div id="veil"><section id="sheet" role="dialog" aria-label="MyPPT 圖片下載">
 <div id="top"><div><h2>圖片下載</h2><div id="sub">已找到 0 張圖片</div></div><button id="close">關閉</button></div>
 <div id="actions"><button id="refresh">重新掃描</button><button id="all">全選</button><button id="save" class="primary">下載選取</button></div>
-<div id="gallery"></div><button id="canvas" style="margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:white">測試圖片讀取</button><button id="report" style="margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:white">複製診斷報告</button><p id="status">先捲動頁面，讓圖片載入後再掃描。</p>
-</section></div>`;
+<div id="gallery"></div><button id="view" style="margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:white">原圖檢視／長按</button><button id="canvas" style="margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:white">測試圖片讀取</button><button id="report" style="margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:white">複製診斷報告</button><p id="status">先捲動頁面，讓圖片載入後再掃描。</p>
+</section></div><div id="viewer"><div id="viewerhead"><span>長按圖片嘗試儲存</span><button id="viewclose">返回</button></div><div id="viewerbody"></div></div>`;
   document.documentElement.appendChild(root);
   const $ = id => shadow.getElementById(id);
   const veil = $('veil'), gallery = $('gallery');
@@ -164,6 +164,21 @@
       return requestGM(url);
     }
   }
+  $('view').onclick = () => {
+    const url = [...selected][0];
+    if (!url) { $('status').textContent = '請先選一張圖片'; return; }
+    const image = document.createElement('img');
+    image.src = url;
+    image.alt = '原圖，請長按嘗試儲存';
+    image.draggable = true;
+    image.style.webkitTouchCallout = 'default';
+    $('viewerbody').replaceChildren(image);
+    $('viewer').classList.add('open');
+  };
+  $('viewclose').onclick = () => {
+    $('viewer').classList.remove('open');
+    $('viewerbody').replaceChildren();
+  };
   $('canvas').onclick = () => {
     diagnostics = ['Canvas / image loading diagnostic'];
     const url = [...selected][0];
@@ -187,7 +202,7 @@
     img.src = url;
   };
   $('report').onclick = async () => {
-    const report = 'MyPPT Downloader v1.3.3\\n'+diagnostics.join('\\n');
+    const report = 'MyPPT Downloader v1.3.4\\n'+diagnostics.join('\\n');
     try { await navigator.clipboard.writeText(report); $('status').textContent='診斷報告已複製'; }
     catch { window.prompt('複製以下診斷內容',report); }
   };
