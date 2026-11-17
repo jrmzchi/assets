@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.4.1
+// @version      1.4.2
 // @description  iPhone image gallery with native long-press save
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -65,16 +65,18 @@
       #galleryScreen{display:none;position:fixed;inset:0;z-index:2147483646;background:#0009;color:#0f172a;font:14px -apple-system,system-ui}
       #galleryScreen.open{display:block}
       #sheet{position:absolute;bottom:0;left:0;right:0;max-height:88dvh;display:flex;flex-direction:column;background:#f8fafc;border-radius:22px 22px 0 0;padding:16px 14px calc(env(safe-area-inset-bottom) + 14px)}
-      #galleryScreen .top{padding:0 0 14px;background:transparent;border:0}
-      #galleryScreen .top strong{font-size:18px}
-      #galleryScreen .top button{background:#e2e8f0}
-      #galleryScreen #count{font-size:12px}
+      #galleryScreen .top{display:flex;align-items:center;gap:10px;padding:0 0 14px;background:transparent;border:0}
+      #galleryScreen .top strong{font-size:19px;letter-spacing:-.4px;flex:1}
+      #galleryScreen .top .tools{display:flex;gap:8px;align-items:center}
+      #galleryScreen .top button{display:grid;place-items:center;width:36px;height:36px;padding:0;background:#e9eef5;border:0;border-radius:11px;color:#334155;font-size:20px}
+      #galleryScreen #count{font-size:12px;color:#64748b;background:#edf2f7;padding:5px 9px;border-radius:999px;font-variant-numeric:tabular-nums}
+      #handle{width:36px;height:5px;border-radius:99px;background:#cbd5e1;margin:-6px auto 16px}
       #grid{overflow:auto;min-height:100px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-content:start}
       .tile{border:0;border-radius:12px;overflow:hidden;aspect-ratio:1;background:#e2e8f0;padding:0}
-      .tile img{display:block;width:100%;height:100%;object-fit:cover;-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important}
+      .tile img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:auto;-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important}
       #empty{grid-column:1/-1;padding:35px 15px;text-align:center;color:#64748b}
       #sheetHint{font-size:12px;color:#64748b;margin:12px 0 0;text-align:center}
-      #viewer{z-index:2147483647;background:#0b0b0d;color:#fff;flex-direction:column}
+      #viewer{display:none;position:fixed;inset:0;z-index:2147483647;background:#0b0b0d;color:#fff;flex-direction:column;font:14px -apple-system,system-ui}
       #viewer.open{display:flex}
       #viewer .top{background:#141416;color:#fff;border-color:#29292e}
       #viewer .top button{background:#2c2c30;color:#fff}
@@ -88,7 +90,8 @@
     </style>
     <button id="fab" type="button">📷 圖片</button>
     <section id="galleryScreen" aria-label="圖片清單"><div id="sheet">
-      <header class="top"><strong>圖片下載</strong><span id="count">0 張</span><button id="refresh" type="button">重新掃描</button><button id="close" type="button">關閉</button></header>
+      <div id="handle"></div>
+      <header class="top"><strong>圖片</strong><span id="count">0 張</span><div class="tools"><button id="refresh" type="button" aria-label="重新掃描" title="重新掃描">↻</button><button id="close" type="button" aria-label="關閉" title="關閉">×</button></div></header>
       <div id="grid"></div>
       <p id="sheetHint">點擊縮圖檢視原圖 · 長按圖片儲存</p>
     </div></section>
