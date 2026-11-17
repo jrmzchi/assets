@@ -1,10 +1,12 @@
 // ==UserScript==
-// @name         MyPPT Image Downloader (Mobile)
+// @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.1.1
-// @description  Download images visible on MyPPT and LURL pages
+// @version      1.2.0
+// @description  Mobile-friendly image gallery and downloads for visible MyPPT/LURL pages
 // @match        https://myppt.cc/*
+// @match        https://*.myppt.cc/*
 // @match        https://lurl.cc/*
+// @match        https://*.lurl.cc/*
 // @updateURL    https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.user.js
 // @downloadURL  https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.user.js
 // @run-at       document-idle
@@ -13,85 +15,105 @@
 
 (() => {
   'use strict';
-  if (window.__mypptImageDownloader) return;
-  window.__mypptImageDownloader = true;
-  const urls = new Set();
-  const normalize = (value) => {
-    if (!value || /^(data:|blob:|javascript:)/i.test(value)) return;
-    try {
-      const u = new URL(value, location.href);
-      if (!/^https?:$/.test(u.protocol)) return;
-      return u.href;
-    } catch { return; }
+  if (window.__mypptDownloaderV2) return;
+  window.__mypptDownloaderV2 = true;
+  const found = new Map();
+  const selected = new Set();
+  const blocked = /^(?:data:|blob:|javascript:)/i;
+  const urlOf = s => {
+    if (!s || blocked.test(s)) return null;
+    try { const u = new URL(s, location.href); return /^https?:$/.test(u.protocol) ? u.href : null; }
+    catch { return null; }
   };
+  const add = (s, origin) => {
+    const u = urlOf(s);
+    if (!u || found.has(u)) return;
+    found.set(u, origin);
+  };
+  const parseSrcset = s => (s || '').split(',').forEach(part => add(part.trim().split(/\s+/)[0], 'srcset'));
   function scan() {
     document.querySelectorAll('img').forEach(img => {
-      for (const key of ['currentSrc','src','data-src','data-original','data-lazy-src','data-url']) {
-        const v = key in img ? img[key] : img.getAttribute(key);
-        const u = normalize(v);
-        if (u) urls.add(u);
-      }
-      const srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
-      if (srcset) srcset.split(',').forEach(s => {
-        const u = normalize(s.trim().split(/\s+/)[0]);
-        if (u) urls.add(u);
-      });
+      ['currentSrc','src'].forEach(k => add(img[k], 'image'));
+      ['data-src','data-original','data-lazy-src','data-url','data-image'].forEach(k => add(img.getAttribute(k), 'image'));
+      parseSrcset(img.getAttribute('srcset'));
+      parseSrcset(img.getAttribute('data-srcset'));
     });
-    document.querySelectorAll('a[href]').forEach(a => {
-      const u = normalize(a.href);
-      if (u && /\.(?:jpe?g|png|webp|gif|avif)(?:[?#]|$)/i.test(u)) urls.add(u);
+    document.querySelectorAll('source').forEach(el => parseSrcset(el.getAttribute('srcset')));
+    document.querySelectorAll('link[rel="preload"][as="image"]').forEach(el => add(el.href, 'preload'));
+    document.querySelectorAll('a[href]').forEach(el => {
+      if (/\.(?:png|jpe?g|webp|gif|avif)(?:[?#]|$)/i.test(el.href)) add(el.href,'link');
     });
-    document.querySelectorAll('link[rel="preload"][as="image"]').forEach(el => {
-      const u = normalize(el.href);
-      if (u) urls.add(u);
+    document.querySelectorAll('[style*="background"]').forEach(el => {
+      const m = getComputedStyle(el).backgroundImage.match(/url\(["']?([^"')]+)["']?\)/);
+      if (m) add(m[1], 'background');
     });
-    return [...urls];
+    return [...found.keys()];
   }
-  const button = document.createElement('button');
-  button.textContent = '📷 圖片下載';
-  Object.assign(button.style, {
-    position:'fixed',right:'14px',bottom:'85px',zIndex:'2147483647',
-    padding:'12px 16px',background:'#1677ff',color:'white',
-    border:'0',borderRadius:'24px',fontSize:'15px',
-    boxShadow:'0 3px 14px #0005'
-  });
-  const panel = document.createElement('div');
-  Object.assign(panel.style, {
-    position:'fixed',inset:'8% 4%',zIndex:'2147483647',
-    background:'#fff',color:'#222',padding:'14px',borderRadius:'12px',
-    overflow:'auto',display:'none',boxShadow:'0 5px 25px #0008'
-  });
-  function show() {
+  const root = document.createElement('div');
+  root.id = 'myppt-download-ui';
+  const shadow = root.attachShadow({mode:'open'});
+  shadow.innerHTML = `
+<style>
+*{box-sizing:border-box}button{font:inherit;cursor:pointer}#fab{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 24px);right:18px;border:0;border-radius:999px;background:#2563eb;color:white;padding:13px 18px;font:600 14px system-ui;box-shadow:0 8px 28px #0005;z-index:2147483647}
+#veil{display:none;position:fixed;inset:0;background:#0009;z-index:2147483646}#veil.open{display:block}
+#sheet{position:absolute;bottom:0;left:0;right:0;max-height:90dvh;display:flex;flex-direction:column;background:#f8fafc;color:#0f172a;border-radius:22px 22px 0 0;padding:16px 14px calc(env(safe-area-inset-bottom) + 16px);font:14px system-ui}
+#top{display:flex;align-items:center;justify-content:space-between;gap:12px}h2{font-size:18px;margin:0}#sub{font-size:12px;color:#64748b;margin-top:4px}#close{border:0;border-radius:10px;background:#e2e8f0;padding:9px 13px}
+#actions{display:flex;gap:8px;margin:16px 0 10px}#actions button{border:1px solid #cbd5e1;border-radius:11px;background:white;padding:10px 12px;flex:1}#actions button.primary{background:#2563eb;color:white;border-color:#2563eb}
+#gallery{overflow:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-content:start;min-height:100px}
+.item{position:relative;border:2px solid transparent;border-radius:12px;overflow:hidden;background:#e2e8f0;aspect-ratio:1;cursor:pointer}.item.active{border-color:#2563eb}.item img{width:100%;height:100%;object-fit:cover}.tick{position:absolute;top:6px;right:6px;background:#fff;border-radius:50%;width:23px;height:23px;text-align:center;line-height:23px;font-weight:bold;color:#2563eb}
+#status{font-size:12px;color:#64748b;margin:10px 0 0}#empty{grid-column:1/-1;padding:30px 12px;text-align:center;color:#64748b}
+</style>
+<button id="fab" type="button">📷 圖片</button>
+<div id="veil"><section id="sheet" role="dialog" aria-label="MyPPT 圖片下載">
+<div id="top"><div><h2>圖片下載</h2><div id="sub">已找到 0 張圖片</div></div><button id="close">關閉</button></div>
+<div id="actions"><button id="refresh">重新掃描</button><button id="all">全選</button><button id="save" class="primary">下載選取</button></div>
+<div id="gallery"></div><p id="status">先捲動頁面，讓圖片載入後再掃描。</p>
+</section></div>`;
+  document.documentElement.appendChild(root);
+  const $ = id => shadow.getElementById(id);
+  const veil = $('veil'), gallery = $('gallery');
+  function render() {
     const list = scan();
-    panel.replaceChildren();
-    const heading = document.createElement('div');
-    heading.textContent = 'MyPPT 圖片下載（' + list.length + '）';
-    heading.style.cssText = 'font-size:18px;font-weight:bold;margin-bottom:10px';
-    panel.append(heading);
-    const close = document.createElement('button');
-    close.textContent = '關閉';
-    close.onclick = () => { panel.style.display = 'none'; };
-    panel.append(close);
-    const hint = document.createElement('p');
-    hint.textContent = '點擊圖片可開啟原圖，再長按儲存。請先捲動頁面載入所有圖片。';
-    panel.append(hint);
+    $('sub').textContent = '已找到 ' + list.length + ' 個圖片網址 · 已選 ' + selected.size;
+    gallery.replaceChildren();
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.id = 'empty';
+      empty.textContent = '尚未找到圖片。請確認頁面已載入、可正常查看內容。';
+      gallery.append(empty);
+    }
     list.forEach((url,i) => {
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.style.cssText = 'display:inline-block;width:46%;margin:1%;vertical-align:top;word-break:break-all';
+      const tile = document.createElement('button');
+      tile.type = 'button'; tile.className = 'item' + (selected.has(url) ? ' active' : '');
+      tile.setAttribute('aria-label','選取圖片 '+(i+1));
       const img = document.createElement('img');
-      img.src = url;
-      img.loading = 'lazy';
-      img.style.cssText = 'width:100%;max-height:160px;object-fit:contain;background:#eee';
-      const label = document.createElement('div');
-      label.textContent = '圖片 ' + (i+1);
-      a.append(img,label);
-      panel.append(a);
+      img.src = url; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+      const tick = document.createElement('span');
+      tick.className = 'tick'; tick.textContent = selected.has(url) ? '✓' : '+';
+      tile.append(img,tick);
+      tile.onclick = () => { selected.has(url) ? selected.delete(url) : selected.add(url); render(); };
+      gallery.append(tile);
     });
-    panel.style.display = 'block';
   }
-  button.onclick = show;
-  document.documentElement.append(button,panel);
+  $('fab').onclick = () => { render(); veil.classList.add('open'); };
+  $('close').onclick = () => veil.classList.remove('open');
+  veil.addEventListener('click',e => { if(e.target === veil) veil.classList.remove('open'); });
+  $('refresh').onclick = render;
+  $('all').onclick = () => {
+    const urls = scan();
+    if (urls.every(u=>selected.has(u))) selected.clear(); else urls.forEach(u=>selected.add(u));
+    render();
+  };
+  $('save').onclick = async () => {
+    const urls = [...selected];
+    if (!urls.length) { $('status').textContent = '請先選取圖片。'; return; }
+    if (urls.length > 1) {
+      $('status').textContent = 'iPhone 可能會封鎖多重下載；將逐一開啟圖片連結。';
+    }
+    // User gesture opens the first image. Subsequent images require explicit taps on mobile.
+    const a = document.createElement('a');
+    a.href = urls[0]; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.click();
+    $('status').textContent = urls.length === 1 ? '已開啟圖片，請長按儲存。' : '已開啟第 1 張；為避免 Safari 封鎖，請逐張開啟其餘圖片。';
+  };
 })();
