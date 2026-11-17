@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.4.0
+// @version      1.4.1
 // @description  iPhone image gallery with native long-press save
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
