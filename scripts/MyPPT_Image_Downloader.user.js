@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader (Mobile)
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.1.0
+// @version      1.1.1
 // @description  Download images visible on MyPPT and LURL pages
 // @match        https://myppt.cc/*
 // @match        https://lurl.cc/*
+// @updateURL    https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.user.js
+// @downloadURL  https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.user.js
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
