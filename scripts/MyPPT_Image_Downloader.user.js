@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.3.0
+// @version      1.3.1
 // @description  Mobile-friendly image gallery and downloads for visible MyPPT/LURL pages
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -69,7 +69,7 @@
 <div id="veil"><section id="sheet" role="dialog" aria-label="MyPPT 圖片下載">
 <div id="top"><div><h2>圖片下載</h2><div id="sub">已找到 0 張圖片</div></div><button id="close">關閉</button></div>
 <div id="actions"><button id="refresh">重新掃描</button><button id="all">全選</button><button id="save" class="primary">下載選取</button></div>
-<div id="gallery"></div><p id="status">先捲動頁面，讓圖片載入後再掃描。</p>
+<div id="gallery"></div><button id="report" style="margin-top:10px;padding:10px;border:1px solid #cbd5e1;border-radius:10px;background:white">複製診斷報告</button><p id="status">先捲動頁面，讓圖片載入後再掃描。</p>
 </section></div>`;
   document.documentElement.appendChild(root);
   const $ = id => shadow.getElementById(id);
@@ -117,31 +117,49 @@
     return 'jpg';
   };
   const validImage = b => b && b.size > 0 && (b.type.startsWith('image/') || b.type === 'application/octet-stream');
+  let diagnostics = [];
+  const note = s => { diagnostics.push(s); };
   const requestGM = url => new Promise((resolve,reject) => {
-    if (typeof GM_xmlhttpRequest !== 'function') return reject(new Error('Tampermonkey 跨網域請求不可用'));
-    GM_xmlhttpRequest({
-      method:'GET',url,responseType:'blob',timeout:20000,
-      onload: r => {
-        if (r.status < 200 || r.status >= 300) return reject(new Error('HTTP '+r.status));
-        const b = r.response;
-        if (!validImage(b)) return reject(new Error('伺服器未回傳圖片（可能是驗證或封鎖頁）'));
-        resolve(b);
-      },
-      onerror: () => reject(new Error('跨網域請求被拒絕')),
-      ontimeout: () => reject(new Error('連線逾時'))
-    });
+    if (typeof GM_xmlhttpRequest !== 'function') {
+      note('GM: API unavailable'); return reject(new Error('Tampermonkey 跨網域 API 不可用'));
+    }
+    try {
+      GM_xmlhttpRequest({
+        method:'GET',url,responseType:'blob',timeout:20000,
+        onload: r => {
+          const b = r.response;
+          note('GM: HTTP '+r.status+'; type='+ (b?.type || 'unknown') +'; bytes='+(b?.size ?? 'unknown'));
+          if (r.status < 200 || r.status >= 300) return reject(new Error('GM HTTP '+r.status));
+          if (!validImage(b)) return reject(new Error('GM 回傳非圖片內容'));
+          resolve(b);
+        },
+        onerror: e => { note('GM: onerror; type='+(e?.type||'unknown')); reject(new Error('GM 請求失敗')); },
+        ontimeout: () => { note('GM: timeout'); reject(new Error('GM 逾時')); },
+        onabort: () => { note('GM: aborted'); reject(new Error('GM 已中止')); }
+      });
+    } catch(e) { note('GM: exception '+(e?.name||'Error')); reject(e); }
   });
   async function getBlob(url) {
+    note('Image host: '+new URL(url).hostname);
+    note('Page host: '+location.hostname);
     try {
       const r = await fetch(url,{credentials:'include',referrer:location.href});
+      note('fetch: HTTP '+r.status+'; type='+r.type+'; content-type='+(r.headers.get('content-type')||'unknown'));
       if (!r.ok) throw new Error('HTTP '+r.status);
       const b = await r.blob();
+      note('fetch blob: '+b.type+'; bytes='+b.size);
       if (!validImage(b)) throw new Error('回傳內容不是圖片');
       return b;
-    } catch (e) {
+    } catch(e) {
+      note('fetch error: '+(e?.name||'Error')+' - '+(e?.message||'unknown'));
       return requestGM(url);
     }
   }
+  $('report').onclick = async () => {
+    const report = 'MyPPT Downloader v1.3.1\\n'+diagnostics.join('\\n');
+    try { await navigator.clipboard.writeText(report); $('status').textContent='診斷報告已複製'; }
+    catch { window.prompt('複製以下診斷內容',report); }
+  };
   const downloadBlob = (blob,name) => {
     const objectURL = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -152,6 +170,7 @@
   $('save').onclick = async () => {
     const urls = [...selected];
     if (!urls.length) { $('status').textContent = '請先選取圖片。'; return; }
+    diagnostics = ['Browser: iOS Safari / Tampermonkey (user reported)'];
     $('save').disabled = true;
     let success = 0, failed = 0, error = '';
     for (let i = 0; i < urls.length; i++) {
@@ -161,7 +180,7 @@
         const name = 'myppt_' + String(i+1).padStart(3,'0') + '.' + extension(blob,urls[i]);
         downloadBlob(blob,name);
         success++;
-      } catch (e) { failed++; error = e.message || String(e); }
+      } catch (e) { failed++; error = e.message || String(e); note('Result: '+error); }
     }
     $('save').disabled = false;
     $('status').textContent = '完成：成功 '+success+'，失敗 '+failed+(failed ? '。最後錯誤：'+error : '')+'。iOS 可能要求允許多檔下載。';
