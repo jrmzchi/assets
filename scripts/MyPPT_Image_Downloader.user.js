@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.4.4
-// @description  iPhone image gallery with native long-press save
+// @version      1.5.0
+// @description  iPhone image gallery with native long-press save + auto age confirm
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
 // @match        https://lurl.cc/*
@@ -16,6 +16,25 @@
 (() => {
   'use strict';
   if (document.getElementById('myppt-download-ui')) return;
+
+  // ========== 自動年齡驗證 ==========
+  const AGE_TEXTS = ['我已年滿', '年滿18', '已滿18', '進入', '確認', '同意', 'Yes', 'Enter', 'I am'];
+  function autoAgeConfirm() {
+    const candidates = [...document.querySelectorAll('button, a, input[type="button"], input[type="submit"], div[role="button"], span')];
+    for (const el of candidates) {
+      if (!el.offsetParent && el.style.display === 'none') continue;
+      const text = (el.innerText || el.textContent || el.value || '').replace(/\s+/g, '').trim();
+      if (!text) continue;
+      if (AGE_TEXTS.some(t => text.includes(t)) && el.getClientRects().length && !el.disabled) {
+        console.log('[MyPPT] 自動點年齡確認:', text);
+        el.click();
+        return true;
+      }
+    }
+    return false;
+  }
+  autoAgeConfirm();
+  // =================================
 
   const unlockStyle = document.createElement('style');
   unlockStyle.textContent = 'img,a,video{-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important}';
@@ -75,7 +94,11 @@
   const fillObserver = new MutationObserver(() => {
     if (fillQueued) return;
     fillQueued = true;
-    setTimeout(() => { fillQueued = false; prefillUploadDatePassword(); }, 250);
+    setTimeout(() => {
+      fillQueued = false;
+      prefillUploadDatePassword();
+      autoAgeConfirm(); // 彈窗可能晚出現，也一起掃
+    }, 250);
   });
   fillObserver.observe(document.documentElement, {childList:true, subtree:true});
   window.addEventListener('pageshow', prefillUploadDatePassword);
