@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.5.1
+// @version      1.5.2
 // @description  iPhone image and video viewer with native save
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
