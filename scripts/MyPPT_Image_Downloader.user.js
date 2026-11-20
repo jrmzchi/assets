@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.5.3
-// @description  iPhone image and video viewer with native save
+// @version      1.5.4
+// @description  iPhone image gallery and native video long-press viewer
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
 // @match        https://lurl.cc/*
@@ -10,9 +10,7 @@
 // @updateURL    https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.meta.js
 // @downloadURL  https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.user.js
 // @run-at       document-idle
-// @grant        GM_xmlhttpRequest
-// @connect      *.myppt.cc
-// @connect      myppt.cc
+// @grant        none
 // ==/UserScript==
 
 (() => {
@@ -146,18 +144,16 @@
       #tabs{display:flex;gap:6px;background:#e9eef5;padding:4px;border-radius:12px;margin-bottom:12px}
       #tabs button{flex:1;border:0;border-radius:9px;background:transparent;padding:10px;color:#64748b;font-weight:600}
       #tabs button.active{background:#fff;color:#0f172a;box-shadow:0 1px 4px #0001}
-      #videos{display:none;overflow:auto;min-height:100px}
-      .videoCard{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:8px}
-      .videoCard span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .videoCard button,.videoCard a{border:0;background:#2563eb;color:white;padding:10px 12px;border-radius:10px;text-decoration:none;font:inherit;white-space:nowrap}
-      .videoCard button{background:#e2e8f0;color:#334155}
-      .videoCard button:last-child{background:#2563eb;color:white}
-      .videoCard button:disabled{opacity:.55}
+      #videos{display:none;overflow:auto;min-height:100px;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-content:start}
+      .videoTile{position:relative;aspect-ratio:1;background:#161b25;border-radius:12px;overflow:hidden;cursor:pointer}
+      .videoTile video{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}
+      .playBadge{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#0009;color:white;font-size:17px;pointer-events:none}
+      .videoLabel{position:absolute;bottom:0;left:0;right:0;padding:6px;background:#0009;color:white;font-size:12px;pointer-events:none}
       #videoViewer{display:none;position:fixed;inset:0;z-index:2147483647;background:#101014;color:white;flex-direction:column;font:14px -apple-system,system-ui}
       #videoViewer.open{display:flex}
       #videoViewer header{padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;display:flex;justify-content:space-between;align-items:center}
       #videoViewer button{background:#303036;color:white;border:0;border-radius:10px;padding:12px}
-      #videoViewer video{width:100%;flex:1;min-height:0;object-fit:contain}
+      #videoViewer video{width:100%;flex:1;min-height:0;object-fit:contain;-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important}
       #videoViewer footer{padding:12px 16px calc(env(safe-area-inset-bottom) + 14px);text-align:center}
       #videoViewer #openVideo{background:#2563eb;width:100%;font-weight:600}
       #videoViewer p{color:#cbd5e1;font-size:12px}
@@ -193,7 +189,7 @@
     </section>
     <section id="videoViewer"><header><strong>影片檢視</strong><button id="videoBack">返回</button></header>
     <video id="videoPlayer" controls playsinline preload="metadata"></video>
-    <footer><button id="openVideo">開啟原始影片</button><p>可使用 Safari 分享選單嘗試儲存至「檔案」</p></footer></section>
+    <footer><p>長按影片，嘗試使用 Safari 原生選單儲存（依 iOS 支援情況）</p></footer></section>
   `;
   document.documentElement.appendChild(root);
   const $ = id => shadow.getElementById(id);
@@ -202,26 +198,15 @@
   let activeTab = 'image';
   let currentVideo = '';
 
-  function fetchVideoViaGM(url) {
-    return new Promise((resolve,reject) => {
-      if (typeof GM_xmlhttpRequest !== 'function') return reject(new Error('Tampermonkey 不支援跨網域請求'));
-      GM_xmlhttpRequest({
-        method:'GET', url, responseType:'blob', timeout:120000,
-        headers:{'Accept':'video/*,*/*;q=0.8'},
-        onload: res => {
-          if (res.status !== 200) return reject(new Error('HTTP '+res.status+'（影片未完整回傳）'));
-          const blob = res.response;
-          const headers = res.responseHeaders || '';
-          if (/content-type:\s*(?:text\/html|application\/json)/i.test(headers))
-            return reject(new Error('伺服器回傳驗證頁，而非影片'));
-          if (!(blob instanceof Blob) || !blob.size)
-            return reject(new Error('未取得完整影片資料'));
-          resolve(blob);
-        },
-        ontimeout: () => reject(new Error('下載逾時')),
-        onerror: () => reject(new Error('Tampermonkey 跨網域請求失敗'))
-      });
-    });
+  function openVideoViewer(url) {
+    currentVideo = url;
+    const player = $('videoPlayer');
+    player.src = url;
+    player.setAttribute('controls', '');
+    player.setAttribute('playsinline', '');
+    player.style.webkitTouchCallout = 'default';
+    player.style.webkitUserSelect = 'auto';
+    $('videoViewer').classList.add('open');
   }
   function renderVideos() {
     const items = scanVideos();
@@ -233,55 +218,23 @@
       $('videos').append(empty);
     }
     items.forEach((url,i) => {
-      const card = document.createElement('div'); card.className='videoCard';
-      const title = document.createElement('span'); title.textContent='🎬 影片 '+(i+1)+' · '+(new URL(url).pathname.split('.').pop()||'').toUpperCase();
-      const button = document.createElement('button'); button.textContent='檢視';
-      button.onclick = () => { currentVideo=url; $('videoPlayer').src=url; $('videoViewer').classList.add('open'); };
-      const download = document.createElement('button');
-      download.textContent='下載';
-      download.setAttribute('aria-label','下載第 '+(i+1)+' 部影片');
-      download.onclick = async () => {
-        download.disabled = true;
-        download.textContent = '下載中…';
-        try {
-          let blob;
-          try {
-            blob = await fetchVideoViaGM(url);
-          } catch (gmError) {
-            try {
-              const response = await fetch(url, {mode:'cors',credentials:'include',redirect:'follow'});
-              if (!response.ok) throw new Error('HTTP '+response.status);
-              if (/text\/html|application\/json/i.test(response.headers.get('content-type') || ''))
-                throw new Error('伺服器回傳驗證頁');
-              blob = await response.blob();
-              if (!blob.size) throw new Error('影片資料為空');
-            } catch (fetchError) {
-              throw new Error('GM：'+gmError.message+'；fetch：'+fetchError.message);
-            }
-          }
-          const ext = ((new URL(url).pathname.match(/\.(mov|mp4|m4v|webm)$/i)||[])[1]||'mp4').toLowerCase();
-          const objectUrl = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = objectUrl;
-          a.download = 'myppt_video_'+String(i+1).padStart(3,'0')+'.'+ext;
-          a.style.display='none';
-          document.body.append(a);
-          a.click();
-          a.remove();
-          setTimeout(() => URL.revokeObjectURL(objectUrl),60000);
-          download.textContent = '已送出下載';
-        } catch (error) {
-          const message = error instanceof TypeError
-            ? '無法讀取影片：可能受到 CORS、網路或 Cloudflare 限制。'
-            : '下載失敗：'+(error?.message || '未知錯誤');
-          download.textContent = '下載失敗';
-          alert(message+'\n不會自動跳轉至原始影片。');
-        } finally {
-          download.disabled = false;
-          setTimeout(() => { if (download.isConnected) download.textContent='下載'; },2500);
-        }
-      };
-      card.append(title,button,download); $('videos').append(card);
+      const tile = document.createElement('div');
+      tile.className = 'videoTile';
+      const preview = document.createElement('video');
+      preview.src = url;
+      preview.preload = 'metadata';
+      preview.muted = true;
+      preview.playsInline = true;
+      preview.setAttribute('aria-label','第 '+(i+1)+' 部影片縮圖');
+      const play = document.createElement('span');
+      play.className = 'playBadge';
+      play.textContent = '▶';
+      const label = document.createElement('span');
+      label.className = 'videoLabel';
+      label.textContent = '影片 '+(i+1);
+      tile.append(preview,play,label);
+      tile.addEventListener('click', () => openVideoViewer(url));
+      $('videos').append(tile);
     });
     $('count').textContent=items.length+' 部';
   }
@@ -290,8 +243,8 @@
     $('imageTab').classList.toggle('active',tab==='image');
     $('videoTab').classList.toggle('active',tab==='video');
     $('grid').style.display=tab==='image'?'grid':'none';
-    $('videos').style.display=tab==='video'?'block':'none';
-    $('sheetHint').textContent=tab==='image'?'點擊縮圖檢視原圖 · 長按圖片儲存':'點「下載」直接取得影片；如遭 CORS 或 Cloudflare 阻擋會顯示錯誤';
+    $('videos').style.display=tab==='video'?'grid':'none';
+    $('sheetHint').textContent=tab==='image'?'點擊縮圖檢視原圖 · 長按圖片儲存':'點擊影片縮圖檢視 · 長按影片嘗試原生儲存';
     if (tab==='image') renderGrid(); else renderVideos();
   }
   function renderGrid() {
@@ -344,7 +297,6 @@
   $('imageTab').onclick = () => setTab('image');
   $('videoTab').onclick = () => setTab('video');
   $('videoBack').onclick = () => { $('videoViewer').classList.remove('open'); $('videoPlayer').pause(); $('videoPlayer').removeAttribute('src'); $('videoPlayer').load(); };
-  $('openVideo').onclick = () => { if (currentVideo) window.open(currentVideo,'_blank','noopener'); };
   $('refresh').onclick = () => setTab(activeTab);
   $('close').onclick = () => $('galleryScreen').classList.remove('open');
   $('galleryScreen').addEventListener('click', e => { if (e.target === $('galleryScreen')) $('galleryScreen').classList.remove('open'); });
