@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.5.2
+// @version      1.5.3
 // @description  iPhone image and video viewer with native save
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -10,7 +10,9 @@
 // @updateURL    https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.meta.js
 // @downloadURL  https://raw.githubusercontent.com/jrmzchi/assets/main/scripts/MyPPT_Image_Downloader.user.js
 // @run-at       document-idle
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      *.myppt.cc
+// @connect      myppt.cc
 // ==/UserScript==
 
 (() => {
@@ -200,6 +202,27 @@
   let activeTab = 'image';
   let currentVideo = '';
 
+  function fetchVideoViaGM(url) {
+    return new Promise((resolve,reject) => {
+      if (typeof GM_xmlhttpRequest !== 'function') return reject(new Error('Tampermonkey 不支援跨網域請求'));
+      GM_xmlhttpRequest({
+        method:'GET', url, responseType:'blob', timeout:120000,
+        headers:{'Accept':'video/*,*/*;q=0.8'},
+        onload: res => {
+          if (res.status !== 200) return reject(new Error('HTTP '+res.status+'（影片未完整回傳）'));
+          const blob = res.response;
+          const headers = res.responseHeaders || '';
+          if (/content-type:\s*(?:text\/html|application\/json)/i.test(headers))
+            return reject(new Error('伺服器回傳驗證頁，而非影片'));
+          if (!(blob instanceof Blob) || !blob.size)
+            return reject(new Error('未取得完整影片資料'));
+          resolve(blob);
+        },
+        ontimeout: () => reject(new Error('下載逾時')),
+        onerror: () => reject(new Error('Tampermonkey 跨網域請求失敗'))
+      });
+    });
+  }
   function renderVideos() {
     const items = scanVideos();
     $('videos').replaceChildren();
@@ -221,12 +244,21 @@
         download.disabled = true;
         download.textContent = '下載中…';
         try {
-          const response = await fetch(url, {mode:'cors',credentials:'include',redirect:'follow',cache:'no-store'});
-          if (!response.ok) throw new Error('HTTP '+response.status+(response.status===403?'（可能遭 Cloudflare 阻擋）':''));
-          const type = response.headers.get('content-type') || '';
-          if (/text\/html|application\/json/i.test(type)) throw new Error('伺服器回傳網頁或驗證頁，而非影片');
-          const blob = await response.blob();
-          if (!blob.size) throw new Error('影片資料為空');
+          let blob;
+          try {
+            blob = await fetchVideoViaGM(url);
+          } catch (gmError) {
+            try {
+              const response = await fetch(url, {mode:'cors',credentials:'include',redirect:'follow'});
+              if (!response.ok) throw new Error('HTTP '+response.status);
+              if (/text\/html|application\/json/i.test(response.headers.get('content-type') || ''))
+                throw new Error('伺服器回傳驗證頁');
+              blob = await response.blob();
+              if (!blob.size) throw new Error('影片資料為空');
+            } catch (fetchError) {
+              throw new Error('GM：'+gmError.message+'；fetch：'+fetchError.message);
+            }
+          }
           const ext = ((new URL(url).pathname.match(/\.(mov|mp4|m4v|webm)$/i)||[])[1]||'mp4').toLowerCase();
           const objectUrl = URL.createObjectURL(blob);
           const a = document.createElement('a');
