@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.4.4
-// @description  iPhone image gallery with native long-press save
+// @version      1.5.0
+// @description  iPhone image and video viewer with native save
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
 // @match        https://lurl.cc/*
@@ -80,6 +80,23 @@
   fillObserver.observe(document.documentElement, {childList:true, subtree:true});
   window.addEventListener('pageshow', prefillUploadDatePassword);
 
+
+  const videoUrls = new Map();
+  function scanVideos() {
+    const add = value => {
+      if (!value || /^(data|blob|javascript):/i.test(value)) return;
+      try {
+        const u = new URL(value, location.href);
+        if (/^https?:$/.test(u.protocol) && /\.(mov|mp4|m4v|webm)(?:[?#]|$)/i.test(u.href)) videoUrls.set(u.href,true);
+      } catch {}
+    };
+    document.querySelectorAll('video').forEach(el => {
+      add(el.currentSrc); add(el.src); add(el.getAttribute('data-src'));
+      el.querySelectorAll('source').forEach(s => add(s.src));
+    });
+    document.querySelectorAll('source[src],a[href]').forEach(el => add(el.src || el.href));
+    return [...videoUrls.keys()];
+  }
   const urls = new Map();
   const isImage = u => /\.(?:jpe?g|png|gif|webp|avif)(?:[?#]|$)/i.test(u);
   function add(value) {
@@ -124,6 +141,21 @@
       #galleryScreen .top button{display:grid;place-items:center;width:36px;height:36px;padding:0;background:#e9eef5;border:0;border-radius:11px;color:#334155;font-size:20px}
       #galleryScreen #count{font-size:12px;color:#64748b;background:#edf2f7;padding:5px 9px;border-radius:999px;font-variant-numeric:tabular-nums}
       #handle{width:36px;height:5px;border-radius:99px;background:#cbd5e1;margin:-6px auto 16px}
+      #tabs{display:flex;gap:6px;background:#e9eef5;padding:4px;border-radius:12px;margin-bottom:12px}
+      #tabs button{flex:1;border:0;border-radius:9px;background:transparent;padding:10px;color:#64748b;font-weight:600}
+      #tabs button.active{background:#fff;color:#0f172a;box-shadow:0 1px 4px #0001}
+      #videos{display:none;overflow:auto;min-height:100px}
+      .videoCard{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:8px}
+      .videoCard span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .videoCard button{border:0;background:#2563eb;color:white;padding:10px 12px;border-radius:10px}
+      #videoViewer{display:none;position:fixed;inset:0;z-index:2147483647;background:#101014;color:white;flex-direction:column;font:14px -apple-system,system-ui}
+      #videoViewer.open{display:flex}
+      #videoViewer header{padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;display:flex;justify-content:space-between;align-items:center}
+      #videoViewer button{background:#303036;color:white;border:0;border-radius:10px;padding:12px}
+      #videoViewer video{width:100%;flex:1;min-height:0;object-fit:contain}
+      #videoViewer footer{padding:12px 16px calc(env(safe-area-inset-bottom) + 14px);text-align:center}
+      #videoViewer #openVideo{background:#2563eb;width:100%;font-weight:600}
+      #videoViewer p{color:#cbd5e1;font-size:12px}
       #grid{overflow:auto;min-height:100px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-content:start}
       .tile{border:0;border-radius:12px;overflow:hidden;aspect-ratio:1;background:#e2e8f0;padding:0}
       .tile img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:auto;-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important}
@@ -145,7 +177,8 @@
     <section id="galleryScreen" aria-label="圖片清單"><div id="sheet">
       <div id="handle"></div>
       <header class="top"><strong>圖片</strong><span id="count">0 張</span><div class="tools"><button id="refresh" type="button" aria-label="重新掃描" title="重新掃描">↻</button><button id="close" type="button" aria-label="關閉" title="關閉">×</button></div></header>
-      <div id="grid"></div>
+      <div id="tabs"><button id="imageTab" class="active" type="button">圖片</button><button id="videoTab" type="button">影片</button></div>
+      <div id="grid"></div><div id="videos"></div>
       <p id="sheetHint">點擊縮圖檢視原圖 · 長按圖片儲存</p>
     </div></section>
     <section id="viewer" aria-label="原圖檢視">
@@ -153,12 +186,44 @@
       <div id="imageArea"></div>
       <footer id="bottom"><button id="prev" type="button">‹ 上一張</button><span id="hint">長按圖片儲存</span><button id="next" type="button">下一張 ›</button></footer>
     </section>
+    <section id="videoViewer"><header><strong>影片檢視</strong><button id="videoBack">返回</button></header>
+    <video id="videoPlayer" controls playsinline preload="metadata"></video>
+    <footer><button id="openVideo">開啟原始影片</button><p>可使用 Safari 分享選單嘗試儲存至「檔案」</p></footer></section>
   `;
   document.documentElement.appendChild(root);
   const $ = id => shadow.getElementById(id);
   let list = [];
   let index = 0;
+  let activeTab = 'image';
+  let currentVideo = '';
 
+  function renderVideos() {
+    const items = scanVideos();
+    $('videos').replaceChildren();
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.id = 'empty';
+      empty.textContent = '尚未找到影片，請先播放網頁影片，再重新掃描。';
+      $('videos').append(empty);
+    }
+    items.forEach((url,i) => {
+      const card = document.createElement('div'); card.className='videoCard';
+      const title = document.createElement('span'); title.textContent='🎬 影片 '+(i+1)+' · '+(new URL(url).pathname.split('.').pop()||'').toUpperCase();
+      const button = document.createElement('button'); button.textContent='檢視';
+      button.onclick = () => { currentVideo=url; $('videoPlayer').src=url; $('videoViewer').classList.add('open'); };
+      card.append(title,button); $('videos').append(card);
+    });
+    $('count').textContent=items.length+' 部';
+  }
+  function setTab(tab) {
+    activeTab=tab;
+    $('imageTab').classList.toggle('active',tab==='image');
+    $('videoTab').classList.toggle('active',tab==='video');
+    $('grid').style.display=tab==='image'?'grid':'none';
+    $('videos').style.display=tab==='video'?'block':'none';
+    $('sheetHint').textContent=tab==='image'?'點擊縮圖檢視原圖 · 長按圖片儲存':'點擊檢視影片，再開啟原始影片儲存';
+    if (tab==='image') renderGrid(); else renderVideos();
+  }
   function renderGrid() {
     list = scan();
     $('count').textContent = list.length + ' 張';
@@ -205,8 +270,12 @@
     index = next;
     showImage();
   }
-  $('fab').onclick = () => { renderGrid(); $('galleryScreen').classList.add('open'); };
-  $('refresh').onclick = renderGrid;
+  $('fab').onclick = () => { setTab(activeTab); $('galleryScreen').classList.add('open'); };
+  $('imageTab').onclick = () => setTab('image');
+  $('videoTab').onclick = () => setTab('video');
+  $('videoBack').onclick = () => { $('videoViewer').classList.remove('open'); $('videoPlayer').pause(); $('videoPlayer').removeAttribute('src'); $('videoPlayer').load(); };
+  $('openVideo').onclick = () => { if (currentVideo) window.open(currentVideo,'_blank','noopener'); };
+  $('refresh').onclick = () => setTab(activeTab);
   $('close').onclick = () => $('galleryScreen').classList.remove('open');
   $('galleryScreen').addEventListener('click', e => { if (e.target === $('galleryScreen')) $('galleryScreen').classList.remove('open'); });
   $('back').onclick = () => { $('viewer').classList.remove('open'); $('imageArea').replaceChildren(); };
