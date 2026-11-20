@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.4.2
+// @version      1.4.3
 // @description  iPhone image gallery with native long-press save
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -26,6 +26,39 @@
       event.stopImmediatePropagation();
     }, true);
   });
+
+  // Prefill the password field with MMDD from the displayed upload date.
+  let lastAutoValue = '';
+  function prefillUploadDatePassword() {
+    const text = document.body?.innerText || '';
+    const match = text.match(/上傳日期\s*[：:]\s*\d{4}[-/](\d{1,2})[-/](\d{1,2})(?=\s|$)/);
+    if (!match) return;
+    const month = Number(match[1]), day = Number(match[2]);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return;
+    const password = String(month).padStart(2, '0') + String(day).padStart(2, '0');
+    const field = [...document.querySelectorAll('input')].find(el =>
+      !el.disabled && !el.readOnly && el.getClientRects().length &&
+      (el.type === 'password' || /密碼|password|passcode/i.test(
+        [el.placeholder, el.name, el.id, el.getAttribute('aria-label')].join(' ')
+      ))
+    );
+    if (!field || field.value === password || (field.value && field.value !== lastAutoValue)) return;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (setter) setter.call(field, password);
+    else field.value = password;
+    field.dispatchEvent(new Event('input', {bubbles:true}));
+    field.dispatchEvent(new Event('change', {bubbles:true}));
+    lastAutoValue = password;
+  }
+  prefillUploadDatePassword();
+  let fillQueued = false;
+  const fillObserver = new MutationObserver(() => {
+    if (fillQueued) return;
+    fillQueued = true;
+    setTimeout(() => { fillQueued = false; prefillUploadDatePassword(); }, 250);
+  });
+  fillObserver.observe(document.documentElement, {childList:true, subtree:true});
+  window.addEventListener('pageshow', prefillUploadDatePassword);
 
   const urls = new Map();
   const isImage = u => /\.(?:jpe?g|png|gif|webp|avif)(?:[?#]|$)/i.test(u);
