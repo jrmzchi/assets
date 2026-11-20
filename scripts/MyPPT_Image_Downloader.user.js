@@ -2,7 +2,7 @@
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
 // @version      1.5.1
-// @description  iPhone image gallery with native long-press save + auto age confirm
+// @description  iPhone image gallery with native long-press save + auto age confirm + date password then 1069 fallback
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
 // @match        https://lurl.cc/*
@@ -46,67 +46,109 @@
     }, true);
   });
 
-  // Prefill the password field with MMDD from the displayed upload date.
+  // ========== 密碼處理：先日期，失敗後試 1069 ==========
   let lastAutoValue = '';
-  // Limit auto-submission to once per share URL, even after a reload or DOM replacement.
-  const passwordAttemptKey = 'myppt:auto-password-attempt:' + location.origin + location.pathname + location.search;
-  let passwordAttempted = false;
-  try { passwordAttempted = sessionStorage.getItem(passwordAttemptKey) === '1'; } catch (_) {}
-  function submitDatePassword(field, password) {
-    if (passwordAttempted) return;
-    const form = field.closest('form');
-    const scope = form || field.closest('section,article,.card,.container,.modal') || document;
-    const buttons = [...scope.querySelectorAll('button,input[type="submit"],input[type="button"]')];
-    const submit = buttons.find(el => {
-      const label = (el.innerText || el.textContent || el.value || '').replace(/\s+/g,'').trim();
-      return /^(送出|提交|確認|解鎖|確定|Submit|Unlock)$/i.test(label) && !el.disabled && el.getClientRects().length;
-    });
-    if (!submit && !form) return;
-    passwordAttempted = true;
-    try { sessionStorage.setItem(passwordAttemptKey, '1'); } catch (_) {}
-    if (submit) submit.click();
-    else if (typeof form.requestSubmit === 'function') form.requestSubmit();
+  const baseKey = 'myppt:pw:' + location.origin + location.pathname + location.search;
+  const dateTriedKey = baseKey + ':date';
+  const fallbackTriedKey = baseKey + ':1069';
+
+  function getTried(key) {
+    try { return sessionStorage.getItem(key) === '1'; } catch (_) { return false; }
   }
-  function prefillUploadDatePassword() {
-    if (passwordAttempted) return;
-    const text = document.body?.innerText || '';
-    const match = text.match(/上傳日期\s*[：:]\s*\d{4}[-/](\d{1,2})[-/](\d{1,2})(?=\s|$)/);
-    if (!match) return;
-    const month = Number(match[1]), day = Number(match[2]);
-    if (month < 1 || month > 12 || day < 1 || day > 31) return;
-    const password = String(month).padStart(2, '0') + String(day).padStart(2, '0');
-    const field = [...document.querySelectorAll('input')].find(el =>
+  function setTried(key) {
+    try { sessionStorage.setItem(key, '1'); } catch (_) {}
+  }
+
+  function findPasswordField() {
+    return [...document.querySelectorAll('input')].find(el =>
       !el.disabled && !el.readOnly && el.getClientRects().length &&
       (el.type === 'password' || /密碼|password|passcode/i.test(
         [el.placeholder, el.name, el.id, el.getAttribute('aria-label')].join(' ')
       ))
     );
-    if (!field || (field.value && field.value !== password && field.value !== lastAutoValue)) return;
-    if (field.value === password) {
-      if (lastAutoValue === password) submitDatePassword(field,password);
-      return;
-    }
+  }
+
+  function findSubmitButton(scope) {
+    const buttons = [...scope.querySelectorAll('button,input[type="submit"],input[type="button"]')];
+    return buttons.find(el => {
+      const label = (el.innerText || el.textContent || el.value || '').replace(/\s+/g,'').trim();
+      return /^(送出|提交|確認|解鎖|確定|Submit|Unlock)$/i.test(label) && !el.disabled && el.getClientRects().length;
+    });
+  }
+
+  function submitPassword(field, password) {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
     if (setter) setter.call(field, password);
     else field.value = password;
     field.dispatchEvent(new Event('input', {bubbles:true}));
     field.dispatchEvent(new Event('change', {bubbles:true}));
     lastAutoValue = password;
-    setTimeout(() => { if (field.isConnected && field.value === password) submitDatePassword(field,password); }, 200);
+
+    const form = field.closest('form');
+    const scope = form || field.closest('section,article,.card,.container,.modal') || document;
+    const submit = findSubmitButton(scope);
+    setTimeout(() => {
+      if (submit) submit.click();
+      else if (form && typeof form.requestSubmit === 'function') form.requestSubmit();
+    }, 150);
   }
-  prefillUploadDatePassword();
+
+  function tryDatePassword() {
+    if (getTried(dateTriedKey)) return false;
+    const text = document.body?.innerText || '';
+    const match = text.match(/上傳日期\s*[：:]\s*\d{4}[-/](\d{1,2})[-/](\d{1,2})(?=\s|$)/);
+    if (!match) return false;
+    const month = Number(match[1]), day = Number(match[2]);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+    const password = String(month).padStart(2, '0') + String(day).padStart(2, '0');
+    const field = findPasswordField();
+    if (!field) return false;
+    console.log('[MyPPT] 嘗試日期密碼:', password);
+    setTried(dateTriedKey);
+    submitPassword(field, password);
+    return true;
+  }
+
+  function tryFallbackPassword() {
+    if (getTried(fallbackTriedKey)) return false;
+    const field = findPasswordField();
+    if (!field) return false;
+    console.log('[MyPPT] 日期密碼失敗，嘗試固定密碼 1069');
+    setTried(fallbackTriedKey);
+    submitPassword(field, '1069');
+    return true;
+  }
+
+  function handlePassword() {
+    // 如果還沒試過日期密碼，先試日期
+    if (!getTried(dateTriedKey)) {
+      tryDatePassword();
+      return;
+    }
+    // 已經試過日期，且還看得到密碼欄，就試 1069
+    if (!getTried(fallbackTriedKey) && findPasswordField()) {
+      // 稍微延遲，避免跟第一次提交衝突
+      setTimeout(tryFallbackPassword, 800);
+    }
+  }
+
+  // 初始執行
+  setTimeout(handlePassword, 400);
+
+  // 用 MutationObserver 持續監控（頁面可能動態載入密碼框）
   let fillQueued = false;
   const fillObserver = new MutationObserver(() => {
     if (fillQueued) return;
     fillQueued = true;
     setTimeout(() => {
       fillQueued = false;
-      prefillUploadDatePassword();
-      autoAgeConfirm(); // 彈窗可能晚出現，也一起掃
-    }, 250);
+      autoAgeConfirm();
+      handlePassword();
+    }, 300);
   });
   fillObserver.observe(document.documentElement, {childList:true, subtree:true});
-  window.addEventListener('pageshow', prefillUploadDatePassword);
+  window.addEventListener('pageshow', () => setTimeout(handlePassword, 400));
+  // =====================================================
 
   const urls = new Map();
   const isImage = u => /\.(?:jpe?g|png|gif|webp|avif)(?:[?#]|$)/i.test(u);
