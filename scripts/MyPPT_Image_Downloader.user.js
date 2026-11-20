@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.5.4
-// @description  iPhone image gallery and native video long-press viewer
+// @version      1.5.5
+// @description  iPhone image gallery and native video share test
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
 // @match        https://lurl.cc/*
@@ -155,7 +155,7 @@
       #videoViewer button{background:#303036;color:white;border:0;border-radius:10px;padding:12px}
       #videoViewer video{width:100%;flex:1;min-height:0;object-fit:contain;-webkit-touch-callout:default!important;-webkit-user-select:auto!important;user-select:auto!important}
       #videoViewer footer{padding:12px 16px calc(env(safe-area-inset-bottom) + 14px);text-align:center}
-      #videoViewer #openVideo{background:#2563eb;width:100%;font-weight:600}
+      #videoViewer #shareVideo{background:#2563eb;width:100%;font-weight:600}
       #videoViewer p{color:#cbd5e1;font-size:12px}
       #grid{overflow:auto;min-height:100px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-content:start}
       .tile{border:0;border-radius:12px;overflow:hidden;aspect-ratio:1;background:#e2e8f0;padding:0}
@@ -189,7 +189,7 @@
     </section>
     <section id="videoViewer"><header><strong>影片檢視</strong><button id="videoBack">返回</button></header>
     <video id="videoPlayer" controls playsinline preload="metadata"></video>
-    <footer><p>長按影片，嘗試使用 Safari 原生選單儲存（依 iOS 支援情況）</p></footer></section>
+    <footer><button id="shareVideo" type="button">分享影片</button><p id="videoShareHint">透過 iOS 分享選單測試儲存至「檔案」；分享的是網址，並非影片檔案</p></footer></section>
   `;
   document.documentElement.appendChild(root);
   const $ = id => shadow.getElementById(id);
@@ -244,7 +244,7 @@
     $('videoTab').classList.toggle('active',tab==='video');
     $('grid').style.display=tab==='image'?'grid':'none';
     $('videos').style.display=tab==='video'?'grid':'none';
-    $('sheetHint').textContent=tab==='image'?'點擊縮圖檢視原圖 · 長按圖片儲存':'點擊影片縮圖檢視 · 長按影片嘗試原生儲存';
+    $('sheetHint').textContent=tab==='image'?'點擊縮圖檢視原圖 · 長按圖片儲存':'點擊影片縮圖檢視 · 使用「分享影片」測試 iOS 原生選單';
     if (tab==='image') renderGrid(); else renderVideos();
   }
   function renderGrid() {
@@ -297,6 +297,19 @@
   $('imageTab').onclick = () => setTab('image');
   $('videoTab').onclick = () => setTab('video');
   $('videoBack').onclick = () => { $('videoViewer').classList.remove('open'); $('videoPlayer').pause(); $('videoPlayer').removeAttribute('src'); $('videoPlayer').load(); };
+  $('shareVideo').onclick = async () => {
+    if (!currentVideo) return;
+    if (!navigator.share) {
+      $('videoShareHint').textContent = '此瀏覽器不支援原生分享；請使用 Safari。';
+      return;
+    }
+    try {
+      await navigator.share({url:currentVideo});
+      $('videoShareHint').textContent = '已關閉分享選單；若無儲存選項，表示此方式無法直接下載影片。';
+    } catch (error) {
+      if (error?.name !== 'AbortError') $('videoShareHint').textContent = '分享失敗：'+(error?.message || '不支援此影片網址');
+    }
+  };
   $('refresh').onclick = () => setTab(activeTab);
   $('close').onclick = () => $('galleryScreen').classList.remove('open');
   $('galleryScreen').addEventListener('click', e => { if (e.target === $('galleryScreen')) $('galleryScreen').classList.remove('open'); });
