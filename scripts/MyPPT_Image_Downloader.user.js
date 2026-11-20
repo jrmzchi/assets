@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.4.3
+// @version      1.4.4
 // @description  iPhone image gallery with native long-press save
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -29,6 +29,21 @@
 
   // Prefill the password field with MMDD from the displayed upload date.
   let lastAutoValue = '';
+  const submittedFields = new WeakMap();
+  function submitDatePassword(field, password) {
+    if (submittedFields.get(field) === password) return;
+    const form = field.closest('form');
+    const scope = form || field.closest('section,article,.card,.container,.modal') || document;
+    const buttons = [...scope.querySelectorAll('button,input[type="submit"],input[type="button"]')];
+    const submit = buttons.find(el => {
+      const label = (el.innerText || el.textContent || el.value || '').replace(/\s+/g,'').trim();
+      return /^(送出|提交|確認|解鎖|確定|Submit|Unlock)$/i.test(label) && !el.disabled && el.getClientRects().length;
+    });
+    if (!submit && !form) return;
+    submittedFields.set(field,password);
+    if (submit) submit.click();
+    else if (typeof form.requestSubmit === 'function') form.requestSubmit();
+  }
   function prefillUploadDatePassword() {
     const text = document.body?.innerText || '';
     const match = text.match(/上傳日期\s*[：:]\s*\d{4}[-/](\d{1,2})[-/](\d{1,2})(?=\s|$)/);
@@ -42,13 +57,18 @@
         [el.placeholder, el.name, el.id, el.getAttribute('aria-label')].join(' ')
       ))
     );
-    if (!field || field.value === password || (field.value && field.value !== lastAutoValue)) return;
+    if (!field || (field.value && field.value !== password && field.value !== lastAutoValue)) return;
+    if (field.value === password) {
+      if (lastAutoValue === password) submitDatePassword(field,password);
+      return;
+    }
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
     if (setter) setter.call(field, password);
     else field.value = password;
     field.dispatchEvent(new Event('input', {bubbles:true}));
     field.dispatchEvent(new Event('change', {bubbles:true}));
     lastAutoValue = password;
+    setTimeout(() => { if (field.isConnected && field.value === password) submitDatePassword(field,password); }, 200);
   }
   prefillUploadDatePassword();
   let fillQueued = false;
