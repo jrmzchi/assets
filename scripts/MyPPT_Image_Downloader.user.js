@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.5.1
+// @version      1.5.2
 // @description  iPhone image and video viewer with native save
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -149,6 +149,8 @@
       .videoCard span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .videoCard button,.videoCard a{border:0;background:#2563eb;color:white;padding:10px 12px;border-radius:10px;text-decoration:none;font:inherit;white-space:nowrap}
       .videoCard button{background:#e2e8f0;color:#334155}
+      .videoCard button:last-child{background:#2563eb;color:white}
+      .videoCard button:disabled{opacity:.55}
       #videoViewer{display:none;position:fixed;inset:0;z-index:2147483647;background:#101014;color:white;flex-direction:column;font:14px -apple-system,system-ui}
       #videoViewer.open{display:flex}
       #videoViewer header{padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;display:flex;justify-content:space-between;align-items:center}
@@ -212,13 +214,41 @@
       const title = document.createElement('span'); title.textContent='🎬 影片 '+(i+1)+' · '+(new URL(url).pathname.split('.').pop()||'').toUpperCase();
       const button = document.createElement('button'); button.textContent='檢視';
       button.onclick = () => { currentVideo=url; $('videoPlayer').src=url; $('videoViewer').classList.add('open'); };
-      const download = document.createElement('a');
+      const download = document.createElement('button');
       download.textContent='下載';
-      download.href=url;
-      download.download='myppt_video_'+String(i+1).padStart(3,'0')+'.'+((new URL(url).pathname.match(/\.(mov|mp4|m4v|webm)$/i)||[])[1]||'mp4').toLowerCase();
-      download.rel='noopener noreferrer';
-      download.target='_blank';
       download.setAttribute('aria-label','下載第 '+(i+1)+' 部影片');
+      download.onclick = async () => {
+        download.disabled = true;
+        download.textContent = '下載中…';
+        try {
+          const response = await fetch(url, {mode:'cors',credentials:'include',redirect:'follow',cache:'no-store'});
+          if (!response.ok) throw new Error('HTTP '+response.status+(response.status===403?'（可能遭 Cloudflare 阻擋）':''));
+          const type = response.headers.get('content-type') || '';
+          if (/text\/html|application\/json/i.test(type)) throw new Error('伺服器回傳網頁或驗證頁，而非影片');
+          const blob = await response.blob();
+          if (!blob.size) throw new Error('影片資料為空');
+          const ext = ((new URL(url).pathname.match(/\.(mov|mp4|m4v|webm)$/i)||[])[1]||'mp4').toLowerCase();
+          const objectUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = objectUrl;
+          a.download = 'myppt_video_'+String(i+1).padStart(3,'0')+'.'+ext;
+          a.style.display='none';
+          document.body.append(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(objectUrl),60000);
+          download.textContent = '已送出下載';
+        } catch (error) {
+          const message = error instanceof TypeError
+            ? '無法讀取影片：可能受到 CORS、網路或 Cloudflare 限制。'
+            : '下載失敗：'+(error?.message || '未知錯誤');
+          download.textContent = '下載失敗';
+          alert(message+'\n不會自動跳轉至原始影片。');
+        } finally {
+          download.disabled = false;
+          setTimeout(() => { if (download.isConnected) download.textContent='下載'; },2500);
+        }
+      };
       card.append(title,button,download); $('videos').append(card);
     });
     $('count').textContent=items.length+' 部';
@@ -229,7 +259,7 @@
     $('videoTab').classList.toggle('active',tab==='video');
     $('grid').style.display=tab==='image'?'grid':'none';
     $('videos').style.display=tab==='video'?'block':'none';
-    $('sheetHint').textContent=tab==='image'?'點擊縮圖檢視原圖 · 長按圖片儲存':'點「下載」嘗試儲存影片；若 Safari 直接播放，請用分享選單儲存';
+    $('sheetHint').textContent=tab==='image'?'點擊縮圖檢視原圖 · 長按圖片儲存':'點「下載」直接取得影片；如遭 CORS 或 Cloudflare 阻擋會顯示錯誤';
     if (tab==='image') renderGrid(); else renderVideos();
   }
   function renderGrid() {
