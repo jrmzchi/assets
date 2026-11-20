@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.5.0
+// @version      1.5.1
 // @description  iPhone image and video viewer with native save
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -147,7 +147,8 @@
       #videos{display:none;overflow:auto;min-height:100px}
       .videoCard{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:8px}
       .videoCard span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .videoCard button{border:0;background:#2563eb;color:white;padding:10px 12px;border-radius:10px}
+      .videoCard button,.videoCard a{border:0;background:#2563eb;color:white;padding:10px 12px;border-radius:10px;text-decoration:none;font:inherit;white-space:nowrap}
+      .videoCard button{background:#e2e8f0;color:#334155}
       #videoViewer{display:none;position:fixed;inset:0;z-index:2147483647;background:#101014;color:white;flex-direction:column;font:14px -apple-system,system-ui}
       #videoViewer.open{display:flex}
       #videoViewer header{padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;display:flex;justify-content:space-between;align-items:center}
@@ -211,7 +212,14 @@
       const title = document.createElement('span'); title.textContent='🎬 影片 '+(i+1)+' · '+(new URL(url).pathname.split('.').pop()||'').toUpperCase();
       const button = document.createElement('button'); button.textContent='檢視';
       button.onclick = () => { currentVideo=url; $('videoPlayer').src=url; $('videoViewer').classList.add('open'); };
-      card.append(title,button); $('videos').append(card);
+      const download = document.createElement('a');
+      download.textContent='下載';
+      download.href=url;
+      download.download='myppt_video_'+String(i+1).padStart(3,'0')+'.'+((new URL(url).pathname.match(/\.(mov|mp4|m4v|webm)$/i)||[])[1]||'mp4').toLowerCase();
+      download.rel='noopener noreferrer';
+      download.target='_blank';
+      download.setAttribute('aria-label','下載第 '+(i+1)+' 部影片');
+      card.append(title,button,download); $('videos').append(card);
     });
     $('count').textContent=items.length+' 部';
   }
@@ -221,7 +229,7 @@
     $('videoTab').classList.toggle('active',tab==='video');
     $('grid').style.display=tab==='image'?'grid':'none';
     $('videos').style.display=tab==='video'?'block':'none';
-    $('sheetHint').textContent=tab==='image'?'點擊縮圖檢視原圖 · 長按圖片儲存':'點擊檢視影片，再開啟原始影片儲存';
+    $('sheetHint').textContent=tab==='image'?'點擊縮圖檢視原圖 · 長按圖片儲存':'點「下載」嘗試儲存影片；若 Safari 直接播放，請用分享選單儲存';
     if (tab==='image') renderGrid(); else renderVideos();
   }
   function renderGrid() {
