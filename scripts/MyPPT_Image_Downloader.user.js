@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.5.0
+// @version      1.5.1
 // @description  iPhone image gallery with native long-press save + auto age confirm
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -48,9 +48,12 @@
 
   // Prefill the password field with MMDD from the displayed upload date.
   let lastAutoValue = '';
-  const submittedFields = new WeakMap();
+  // Limit auto-submission to once per share URL, even after a reload or DOM replacement.
+  const passwordAttemptKey = 'myppt:auto-password-attempt:' + location.origin + location.pathname + location.search;
+  let passwordAttempted = false;
+  try { passwordAttempted = sessionStorage.getItem(passwordAttemptKey) === '1'; } catch (_) {}
   function submitDatePassword(field, password) {
-    if (submittedFields.get(field) === password) return;
+    if (passwordAttempted) return;
     const form = field.closest('form');
     const scope = form || field.closest('section,article,.card,.container,.modal') || document;
     const buttons = [...scope.querySelectorAll('button,input[type="submit"],input[type="button"]')];
@@ -59,11 +62,13 @@
       return /^(送出|提交|確認|解鎖|確定|Submit|Unlock)$/i.test(label) && !el.disabled && el.getClientRects().length;
     });
     if (!submit && !form) return;
-    submittedFields.set(field,password);
+    passwordAttempted = true;
+    try { sessionStorage.setItem(passwordAttemptKey, '1'); } catch (_) {}
     if (submit) submit.click();
     else if (typeof form.requestSubmit === 'function') form.requestSubmit();
   }
   function prefillUploadDatePassword() {
+    if (passwordAttempted) return;
     const text = document.body?.innerText || '';
     const match = text.match(/上傳日期\s*[：:]\s*\d{4}[-/](\d{1,2})[-/](\d{1,2})(?=\s|$)/);
     if (!match) return;
