@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.6.3
+// @version      1.6.4
 // @description  iPhone image gallery with native long-press save + auto age confirm + date password then 1069 fallback
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -72,7 +72,7 @@
     const buttons = [...scope.querySelectorAll('button,input[type="submit"],input[type="button"]')];
     return buttons.find(el => {
       const label = (el.innerText || el.textContent || el.value || '').replace(/\s+/g,'').trim();
-      return /^(送出|提交|確認|解鎖|確定|Submit|Unlock)$/i.test(label) && !el.disabled && el.getClientRects().length;
+      return /^(送出|提交|確認|解鎖|確定|立即解密|解密|Submit|Unlock)$/i.test(label) && !el.disabled && el.getClientRects().length;
     });
   }
 
