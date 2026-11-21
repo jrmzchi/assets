@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.6.2
+// @version      1.6.3
 // @description  iPhone image gallery with native long-press save + auto age confirm + date password then 1069 fallback
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
@@ -90,6 +90,16 @@
     setTimeout(() => {
       if (submit) submit.click();
       else if (form && typeof form.requestSubmit === 'function') form.requestSubmit();
+      else {
+        // Some LURL password dialogs listen for Enter instead of using a form.
+        field.focus();
+        for (const type of ['keydown', 'keypress', 'keyup']) {
+          field.dispatchEvent(new KeyboardEvent(type, {
+            key: 'Enter', code: 'Enter', keyCode: 13, which: 13,
+            bubbles: true, cancelable: true
+          }));
+        }
+      }
     }, 150);
   }
 
