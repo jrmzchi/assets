@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MyPPT Image Downloader
 // @namespace    https://github.com/jrmzchi/assets
-// @version      1.5.1
+// @version      1.6.1
 // @description  iPhone image gallery with native long-press save + auto age confirm + date password then 1069 fallback
 // @match        https://myppt.cc/*
 // @match        https://*.myppt.cc/*
